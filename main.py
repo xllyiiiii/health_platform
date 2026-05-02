@@ -241,11 +241,31 @@ with st.sidebar:
     st.divider()
     
     # 数据源信息
-    with st.expander("📁 数据源", expanded=False):
-        st.caption("• 🏥 WHO Global Health")
-        st.caption("• 💰 World Bank Open Data")
-        st.caption("• 📊 CDC Statistics")
-        st.caption("• 🔬 模拟数据集 v2.0")
+    # 数据源信息 - 显示本地数据文件
+with st.expander("📁 本地数据文件", expanded=False):
+    import os
+    import glob
+    
+    # 显示 data 文件夹下的 CSV 文件
+    if os.path.exists("data"):
+        csv_files = glob.glob("data/*.csv")
+        if csv_files:
+            st.caption("📊 **数据文件列表:**")
+            for f in sorted(csv_files)[:15]:  # 最多显示15个
+                file_name = os.path.basename(f)
+                file_size = os.path.getsize(f) / 1024  # KB
+                st.caption(f"   📄 {file_name} ({file_size:.0f} KB)")
+        else:
+            st.caption("  暂无 CSV 文件")
+    
+    # 显示根目录下的数据文件
+    root_files = glob.glob("*.csv")
+    if root_files:
+        st.caption("📁 **根目录数据文件:**")
+        for f in sorted(root_files)[:10]:
+            file_name = os.path.basename(f)
+            file_size = os.path.getsize(f) / 1024
+            st.caption(f"   📄 {file_name} ({file_size:.0f} KB)")
     
     # 用户状态
     st.markdown("""
@@ -396,7 +416,7 @@ elif menu == "📊 医疗资源分析":
     
     tab1, tab2, tab3 = st.tabs(["🗺️ 全球分布", "📊 数据对比", "📈 年度趋势"])
     
-    file_path = "data/sim_data.csv"
+    file_path = os.path.join("data", "sim_data.csv")
     
     if not os.path.exists(file_path):
         st.error(f"❌ 文件不存在：{os.path.abspath(file_path)}")
@@ -407,12 +427,31 @@ elif menu == "📊 医疗资源分析":
     else:
         df = pd.read_csv(file_path)
         
+        # ========== 国家名称转换（中→英）==========
+        country_mapping = {
+            '中国': 'China',
+            '美国': 'United States',
+            '日本': 'Japan',
+            '德国': 'Germany',
+            '英国': 'United Kingdom',
+            '法国': 'France',
+            '加拿大': 'Canada',
+            '澳大利亚': 'Australia',
+        }
+        df['地理位置'] = df['地理位置'].map(country_mapping).fillna(df['地理位置'])
+        # ========================================
+        
+        # 数据清洗
+        df = df.dropna(subset=['年份', '地理位置', '风险因素', '数值'])
+        df['年份'] = df['年份'].astype(int)
+        
         with tab1:
             col1, col2 = st.columns([1, 2])
             with col1:
                 st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-                year_filter = st.select_slider("📅 选择年份", sorted(df['年份'].unique()), value=2022)
-                risk_filter = st.multiselect("⚠️ 选择风险因素", df['风险因素'].unique(), default=[df['风险因素'].unique()[0]])
+                years = sorted(df['年份'].unique())
+                year_filter = st.select_slider("📅 选择年份", years, value=years[-1] if years else 2022, key="year_slider_1")
+                risk_filter = st.multiselect("⚠️ 选择风险因素", df['风险因素'].unique(), default=[df['风险因素'].unique()[0]], key="risk_filter_tab1")
                 st.markdown('</div>', unsafe_allow_html=True)
             
             with col2:
@@ -431,7 +470,6 @@ elif menu == "📊 医疗资源分析":
                     template="plotly_dark",
                     title=f"{year_filter}年 全球健康风险分布"
                 )
-                fig.update_layout(height=500)
                 st.plotly_chart(fig, use_container_width=True)
         
         with tab2:
@@ -653,7 +691,7 @@ elif menu == "🌍 全球风险监测":
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            selected_year = st.selectbox("📅 年份", sorted(df['年份'].unique(), reverse=True))
+           selected_year = st.selectbox("选择年份", sorted(df['年份'].unique(), reverse=True), key="risk_year")
         with col2:
             risk_type = st.selectbox("⚠️ 风险类型", df['风险因素'].unique())
         with col3:
@@ -784,7 +822,7 @@ elif menu == "📈 趋势预测":
             st.plotly_chart(fig, use_container_width=True)
             
             # 预测报告
-            trend = "上升趋势 📈" if predictions[-1] > y.iloc[-1] else "下降趋势 📉"
+            trend = "上升趋势 📈" if predictions[-1] > y[-1] else "下降趋势 📉"
             trend_color = "#ef4444" if "上升" in trend else "#10b981"
             
             st.markdown(f"""
