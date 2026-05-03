@@ -9,6 +9,7 @@ import random
 from io import BytesIO
 import base64
 import os
+import glob
 
 # 页面全局设置 - 更现代的大屏深色主题
 st.set_page_config(
@@ -193,6 +194,18 @@ if 'calculation_history' not in st.session_state:
 if 'favorite_countries' not in st.session_state:
     st.session_state.favorite_countries = set()
 
+# ========== 国家名称转换映射 ==========
+COUNTRY_MAPPING = {
+    '中国': 'China', '美国': 'United States', '日本': 'Japan', '德国': 'Germany',
+    '英国': 'United Kingdom', '法国': 'France', '加拿大': 'Canada', '澳大利亚': 'Australia',
+    '印度': 'India', '巴西': 'Brazil', '俄罗斯': 'Russia', '韩国': 'South Korea',
+    '意大利': 'Italy', '西班牙': 'Spain', '墨西哥': 'Mexico', '南非': 'South Africa',
+    '土耳其': 'Turkiye', '阿根廷': 'Argentina', '荷兰': 'Netherlands', '瑞士': 'Switzerland',
+    '瑞典': 'Sweden', '比利时': 'Belgium', '奥地利': 'Austria', '挪威': 'Norway',
+    '丹麦': 'Denmark', '芬兰': 'Finland', '波兰': 'Poland', '葡萄牙': 'Portugal',
+    '希腊': 'Greece', '爱尔兰': 'Ireland', '新西兰': 'New Zealand', '以色列': 'Israel',
+}
+
 # ========== 侧边栏美化 ==========
 with st.sidebar:
     # Logo区域
@@ -212,8 +225,11 @@ with st.sidebar:
         "📊 医疗资源分析": "📊",
         "✏️ 智能计算引擎": "✏️",
         "🌍 全球风险监测": "🌍",
+        "📊 国家聚类分析": "📊",
         "📈 趋势预测": "📈",
+        "📊 资源优化": "📊",
         "📋 报告中心": "📋"
+        
     }
     
     menu = st.selectbox(
@@ -240,32 +256,23 @@ with st.sidebar:
     
     st.divider()
     
-    # 数据源信息
-    # 数据源信息 - 显示本地数据文件
-with st.expander("📁 本地数据文件", expanded=False):
-    import os
-    import glob
-    
-    # 显示 data 文件夹下的 CSV 文件
-    if os.path.exists("data"):
-        csv_files = glob.glob("data/*.csv")
-        if csv_files:
-            st.caption("📊 **数据文件列表:**")
-            for f in sorted(csv_files)[:15]:  # 最多显示15个
-                file_name = os.path.basename(f)
-                file_size = os.path.getsize(f) / 1024  # KB
-                st.caption(f"   📄 {file_name} ({file_size:.0f} KB)")
+    # 数据源信息 - 点击文件名查看数据
+    with st.expander("📁 我的数据文件", expanded=False):
+        data_files = glob.glob("data/*.csv")
+        file_names = [os.path.basename(f) for f in sorted(data_files)]
+        
+        if file_names:
+            for f in file_names:
+                file_path = os.path.join("data", f)
+                file_size = os.path.getsize(file_path) / 1024 / 1024
+                
+                if st.button(f"📄 {f} ({file_size:.1f} MB)", key=f"view_{f}"):
+                    df_click = pd.read_csv(file_path)
+                    st.session_state['preview_file'] = f
+                    st.session_state['preview_data'] = df_click
+                    st.rerun()
         else:
-            st.caption("  暂无 CSV 文件")
-    
-    # 显示根目录下的数据文件
-    root_files = glob.glob("*.csv")
-    if root_files:
-        st.caption("📁 **根目录数据文件:**")
-        for f in sorted(root_files)[:10]:
-            file_name = os.path.basename(f)
-            file_size = os.path.getsize(f) / 1024
-            st.caption(f"   📄 {file_name} ({file_size:.0f} KB)")
+            st.caption("暂无数据文件")
     
     # 用户状态
     st.markdown("""
@@ -279,6 +286,26 @@ with st.expander("📁 本地数据文件", expanded=False):
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+# 在侧边栏外部显示数据预览
+if 'preview_data' in st.session_state:
+    st.markdown("---")
+    st.subheader(f"📊 数据预览: {st.session_state['preview_file']}")
+    
+    df_preview = st.session_state['preview_data']
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric("行数", len(df_preview))
+    col2.metric("列数", len(df_preview.columns))
+    if '年份' in df_preview.columns:
+        col3.metric("年份范围", f"{df_preview['年份'].min()} - {df_preview['年份'].max()}")
+    
+    st.dataframe(df_preview.head(20), use_container_width=True)
+    
+    if st.button("关闭预览"):
+        del st.session_state['preview_data']
+        del st.session_state['preview_file']
+        st.rerun()
 
 # ========== 主标题区域 ==========
 col_logo1, col_title, col_logo2 = st.columns([1, 2, 1])
@@ -311,36 +338,17 @@ if menu == "🏠 数据驾驶舱":
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.markdown("""
-        <div class="metric-card">
-            <div style="font-size: 32px;">🌍</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown('<div class="metric-card"><div style="font-size: 32px;">🌍</div></div>', unsafe_allow_html=True)
         st.metric("覆盖国家", "195", "+12", delta_color="normal")
-    
     with col2:
-        st.markdown("""
-        <div class="metric-card">
-            <div style="font-size: 32px;">📊</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.metric("数据记录", "15,234", "+2,345", delta_color="normal")
-    
+        st.markdown('<div class="metric-card"><div style="font-size: 32px;">📊</div></div>', unsafe_allow_html=True)
+        st.metric("数据记录", "194,904", "+24年", delta_color="normal")
     with col3:
-        st.markdown("""
-        <div class="metric-card">
-            <div style="font-size: 32px;">🏥</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.metric("医疗机构", "124,567", "+3.2%", delta_color="normal")
-    
+        st.markdown('<div class="metric-card"><div style="font-size: 32px;">🏥</div></div>', unsafe_allow_html=True)
+        st.metric("风险因素", "20+", "+5", delta_color="normal")
     with col4:
-        st.markdown("""
-        <div class="metric-card">
-            <div style="font-size: 32px;">👨‍⚕️</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.metric("医生数量", "8.2M", "+2.1%", delta_color="normal")
+        st.markdown('<div class="metric-card"><div style="font-size: 32px;">👨‍⚕️</div></div>', unsafe_allow_html=True)
+        st.metric("国家数量", "195", "+12", delta_color="normal")
     
     st.divider()
     
@@ -404,7 +412,6 @@ if menu == "🏠 数据驾驶舱":
 elif menu == "📊 医疗资源分析":
     st.subheader("🌍 全球医疗资源全景分析")
     
-    # 装饰性图标行
     st.markdown("""
     <div style="display: flex; gap: 20px; justify-content: center; margin-bottom: 20px;">
         <div style="text-align: center;">🏥 医疗机构</div>
@@ -421,37 +428,20 @@ elif menu == "📊 医疗资源分析":
     if not os.path.exists(file_path):
         st.error(f"❌ 文件不存在：{os.path.abspath(file_path)}")
         st.warning("💡 提示：请确保 data/sim_data.csv 文件存在")
-        
-        # 创建示例数据提示
         st.info("📝 示例数据格式：\n- 列名：年份,地理位置,风险因素,数值\n- 示例：2022,中国,空气质量指数,72")
     else:
         df = pd.read_csv(file_path)
-        
-        # ========== 国家名称转换（中→英）==========
-        country_mapping = {
-            '中国': 'China',
-            '美国': 'United States',
-            '日本': 'Japan',
-            '德国': 'Germany',
-            '英国': 'United Kingdom',
-            '法国': 'France',
-            '加拿大': 'Canada',
-            '澳大利亚': 'Australia',
-        }
-        df['地理位置'] = df['地理位置'].map(country_mapping).fillna(df['地理位置'])
-        # ========================================
-        
-        # 数据清洗
         df = df.dropna(subset=['年份', '地理位置', '风险因素', '数值'])
         df['年份'] = df['年份'].astype(int)
+        df['地理位置'] = df['地理位置'].map(COUNTRY_MAPPING).fillna(df['地理位置'])
         
         with tab1:
             col1, col2 = st.columns([1, 2])
             with col1:
                 st.markdown('<div class="custom-card">', unsafe_allow_html=True)
                 years = sorted(df['年份'].unique())
-                year_filter = st.select_slider("📅 选择年份", years, value=years[-1] if years else 2022, key="year_slider_1")
-                risk_filter = st.multiselect("⚠️ 选择风险因素", df['风险因素'].unique(), default=[df['风险因素'].unique()[0]], key="risk_filter_tab1")
+                year_filter = st.select_slider("📅 选择年份", years, value=years[-1] if years else 2022, key="year_medical_1")
+                risk_filter = st.multiselect("⚠️ 选择风险因素", df['风险因素'].unique(), default=[df['风险因素'].unique()[0]], key="risk_medical_1")
                 st.markdown('</div>', unsafe_allow_html=True)
             
             with col2:
@@ -461,31 +451,32 @@ elif menu == "📊 医疗资源分析":
                 
                 avg_data = filtered_data.groupby('地理位置')['数值'].mean().reset_index()
                 
-                fig = px.choropleth(
-                    avg_data,
-                    locations="地理位置",
-                    locationmode="country names",
-                    color="数值",
-                    color_continuous_scale="Viridis",
-                    template="plotly_dark",
-                    title=f"{year_filter}年 全球健康风险分布"
-                )
-                st.plotly_chart(fig, use_container_width=True)
+                if not avg_data.empty:
+                    fig = px.choropleth(
+                        avg_data,
+                        locations="地理位置",
+                        locationmode="country names",
+                        color="数值",
+                        color_continuous_scale=["#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"],
+                        template="plotly_dark",
+                        title=f"{year_filter}年 全球健康风险分布"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("所选条件无数据")
         
         with tab2:
             col1, col2 = st.columns(2)
             with col1:
-                country1 = st.selectbox("🏳️ 对比国家 A", df['地理位置'].unique(), key="country1")
+                country_options = df['地理位置'].unique().tolist()
+                country1 = st.selectbox("🏳️ 对比国家 A", country_options, key="country1")
             with col2:
-                country2 = st.selectbox("🏴️ 对比国家 B", df['地理位置'].unique(), key="country2")
+                country2 = st.selectbox("🏴️ 对比国家 B", country_options, key="country2")
             
             comp_data1 = df[df['地理位置'] == country1].groupby('风险因素')['数值'].mean()
             comp_data2 = df[df['地理位置'] == country2].groupby('风险因素')['数值'].mean()
             
-            comp_df = pd.DataFrame({
-                country1: comp_data1,
-                country2: comp_data2
-            }).reset_index()
+            comp_df = pd.DataFrame({country1: comp_data1, country2: comp_data2}).reset_index()
             
             fig = px.bar(comp_df, x='风险因素', y=[country1, country2], 
                         barmode='group', template="plotly_dark",
@@ -494,7 +485,8 @@ elif menu == "📊 医疗资源分析":
             st.plotly_chart(fig, use_container_width=True)
         
         with tab3:
-            selected_country = st.selectbox("🌏 选择国家", df['地理位置'].unique())
+            country_options = df['地理位置'].unique().tolist()
+            selected_country = st.selectbox("🌏 选择国家", country_options, key="trend_country")
             country_data = df[df['地理位置'] == selected_country]
             trend_data = country_data.groupby(['年份', '风险因素'])['数值'].mean().reset_index()
             
@@ -508,7 +500,6 @@ elif menu == "✏️ 智能计算引擎":
     st.subheader("🧠 AI 智能计算引擎")
     st.caption("支持多维度健康指标计算与智能评估 | 数据驱动决策支持")
     
-    # 使用表单进行高级输入
     with st.form("advanced_calc_form"):
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
         
@@ -538,23 +529,17 @@ elif menu == "✏️ 智能计算引擎":
         submitted = st.form_submit_button("🚀 开始智能分析", use_container_width=True)
     
     if submitted:
-        # 计算高级指标
         doctor_per_1000 = (doctor_num / pop_num) * 1000
         nurse_per_1000 = (nurse_num / pop_num) * 1000
         bed_per_1000 = (bed_num / pop_num) * 1000
         hospital_per_million = (hospital_num / pop_num) * 1000000
         
-        # 资源效率指数
         resource_score = min(10, 
-            (doctor_per_1000 / 3) * 0.3 +      # 医生密度（目标3人/千人）
-            (nurse_per_1000 / 6) * 0.25 +      # 护士密度（目标6人/千人）
-            (bed_per_1000 / 5) * 0.25 +        # 床位密度（目标5张/千人）
-            (hospital_per_million / 200) * 0.2  # 机构密度（目标200家/百万人）
-        ) * 10
+            (doctor_per_1000 / 3) * 0.3 + (nurse_per_1000 / 6) * 0.25 + 
+            (bed_per_1000 / 5) * 0.25 + (hospital_per_million / 200) * 0.2) * 10
         
         budget_efficiency = budget / pop_num if pop_num > 0 else 0
         
-        # 等级评定
         if resource_score >= 8:
             level = "🌟 卓越级"
             color = "#10b981"
@@ -576,30 +561,23 @@ elif menu == "✏️ 智能计算引擎":
             description = "医疗资源严重不足，急需改善，建议优先解决基本医疗覆盖问题"
             icon = "🚨"
         
-        # 结果展示
         st.divider()
         st.markdown(f"### {icon} 分析报告 - {area_name} ({year_sel}年)")
         
         col1, col2, col3 = st.columns(3)
         with col1:
             st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.metric("每千人医生数", f"{doctor_per_1000:.2f}", 
-                     delta="较好" if doctor_per_1000 > 2.5 else "不足")
+            st.metric("每千人医生数", f"{doctor_per_1000:.2f}", delta="较好" if doctor_per_1000 > 2.5 else "不足")
             st.markdown('</div>', unsafe_allow_html=True)
-        
         with col2:
             st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.metric("每千人护士数", f"{nurse_per_1000:.2f}",
-                     delta="充足" if nurse_per_1000 > 5 else "紧缺")
+            st.metric("每千人护士数", f"{nurse_per_1000:.2f}", delta="充足" if nurse_per_1000 > 5 else "紧缺")
             st.markdown('</div>', unsafe_allow_html=True)
-        
         with col3:
             st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.metric("每千人床位数", f"{bed_per_1000:.2f}",
-                     delta="达标" if bed_per_1000 > 4 else "不足")
+            st.metric("每千人床位数", f"{bed_per_1000:.2f}", delta="达标" if bed_per_1000 > 4 else "不足")
             st.markdown('</div>', unsafe_allow_html=True)
         
-        # 综合评估卡片
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #1a2332, #16202e); border-radius: 15px; padding: 20px; margin-top: 20px;">
             <div style="display: flex; align-items: center; gap: 15px;">
@@ -611,76 +589,40 @@ elif menu == "✏️ 智能计算引擎":
             </div>
             <hr style="border-color: #2d3a4a; margin: 15px 0;">
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
-                <div>
-                    <div style="color: #8892b0; font-size: 12px;">综合效率指数</div>
-                    <div style="font-size: 24px; font-weight: bold;">{resource_score:.1f}<span style="font-size: 14px;">/10</span></div>
-                </div>
-                <div>
-                    <div style="color: #8892b0; font-size: 12px;">人均医疗预算</div>
-                    <div style="font-size: 20px; font-weight: bold;">{budget_efficiency:.0f}<span style="font-size: 14px;"> 元/人</span></div>
-                </div>
-                <div>
-                    <div style="color: #8892b0; font-size: 12px;">每百万人机构数</div>
-                    <div style="font-size: 20px; font-weight: bold;">{hospital_per_million:.1f}<span style="font-size: 14px;"> 家</span></div>
-                </div>
+                <div><div style="color: #8892b0; font-size: 12px;">综合效率指数</div><div style="font-size: 24px; font-weight: bold;">{resource_score:.1f}<span style="font-size: 14px;">/10</span></div></div>
+                <div><div style="color: #8892b0; font-size: 12px;">人均医疗预算</div><div style="font-size: 20px; font-weight: bold;">{budget_efficiency:.0f}<span style="font-size: 14px;"> 元/人</span></div></div>
+                <div><div style="color: #8892b0; font-size: 12px;">每百万人机构数</div><div style="font-size: 20px; font-weight: bold;">{hospital_per_million:.1f}<span style="font-size: 14px;"> 家</span></div></div>
             </div>
         </div>
         """, unsafe_allow_html=True)
         
-        # 存储历史记录
         st.session_state.calculation_history.append({
-            "地区": area_name,
-            "年份": year_sel,
-            "综合得分": resource_score,
-            "评级": level,
-            "时间": datetime.now().strftime("%Y-%m-%d %H:%M")
+            "地区": area_name, "年份": year_sel, "综合得分": resource_score,
+            "评级": level, "时间": datetime.now().strftime("%Y-%m-%d %H:%M")
         })
         
-        # 雷达图展示
         categories = ['医生资源', '护理资源', '床位资源', '机构资源', '预算效率']
         values = [
-            min(doctor_per_1000 * 3.33, 10),    # 3人/千人为满分
-            min(nurse_per_1000 * 1.67, 10),     # 6人/千人为满分
-            min(bed_per_1000 * 2, 10),          # 5张/千人为满分
-            min(hospital_per_million / 20, 10), # 200家/百万人为满分
-            min(budget_efficiency / 500, 10)    # 500元/人为满分
+            min(doctor_per_1000 * 3.33, 10), min(nurse_per_1000 * 1.67, 10),
+            min(bed_per_1000 * 2, 10), min(hospital_per_million / 20, 10),
+            min(budget_efficiency / 500, 10)
         ]
         
-        fig = go.Figure(data=go.Scatterpolar(
-            r=values,
-            theta=categories,
-            fill='toself',
-            marker=dict(color='#48bbff'),
-            line=dict(color='#48bbff', width=2)
-        ))
-        fig.update_layout(
-            polar=dict(
-                radialaxis=dict(visible=True, range=[0, 10], color='#8892b0'),
-                angularaxis=dict(color='#8892b0'),
-                bgcolor='rgba(0,0,0,0)'
-            ),
-            template='plotly_dark',
-            height=450,
-            title="六维健康资源评估雷达图",
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
-        )
+        fig = go.Figure(data=go.Scatterpolar(r=values, theta=categories, fill='toself',
+                     marker=dict(color='#48bbff'), line=dict(color='#48bbff', width=2)))
+        fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 10])),
+                         template='plotly_dark', height=450, title="六维健康资源评估雷达图")
         st.plotly_chart(fig, use_container_width=True)
 
 # ========== 4. 全球风险监测 ==========
 elif menu == "🌍 全球风险监测":
     st.subheader("⚠️ 全球健康风险实时监测系统")
     
-    # 风险等级说明
     col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.markdown("🟢 **低风险** (0-30)")
-    with col2:
-        st.markdown("🟡 **中风险** (31-60)")
-    with col3:
-        st.markdown("🟠 **高风险** (61-80)")
-    with col4:
-        st.markdown("🔴 **严重** (81-100)")
+    with col1: st.markdown("🟢 **低风险** (0-30)")
+    with col2: st.markdown("🟡 **中风险** (31-60)")
+    with col3: st.markdown("🟠 **高风险** (61-80)")
+    with col4: st.markdown("🔴 **严重** (81-100)")
     
     st.divider()
     
@@ -688,18 +630,20 @@ elif menu == "🌍 全球风险监测":
     
     if os.path.exists(file_path):
         df = pd.read_csv(file_path)
+        df = df.dropna(subset=['年份', '地理位置', '风险因素', '数值'])
+        df['年份'] = df['年份'].astype(int)
+        df['地理位置'] = df['地理位置'].map(COUNTRY_MAPPING).fillna(df['地理位置'])
         
         col1, col2, col3 = st.columns(3)
         with col1:
-           selected_year = st.selectbox("选择年份", sorted(df['年份'].unique(), reverse=True), key="risk_year")
+            years = sorted(df['年份'].unique())
+            selected_year = st.selectbox("选择年份", years, index=len(years)-1, key="risk_year")
         with col2:
-            risk_type = st.selectbox("⚠️ 风险类型", df['风险因素'].unique())
+            risk_type = st.selectbox("⚠️ 风险类型", df['风险因素'].unique(), key="risk_type")
         with col3:
             threshold = st.slider("🎯 风险预警阈值", 0, 100, 50)
         
         filtered_data = df[(df['年份'] == selected_year) & (df['风险因素'] == risk_type)]
-        
-        # 高风险国家警示
         high_risk = filtered_data[filtered_data['数值'] > threshold]
         
         risk_color = "#ef4444" if len(high_risk) > 10 else "#f59e0b" if len(high_risk) > 5 else "#10b981"
@@ -721,7 +665,6 @@ elif menu == "🌍 全球风险监测":
                 st.dataframe(high_risk[['地理位置', '数值']].sort_values('数值', ascending=False), 
                             use_container_width=True)
         
-        # 可视化
         col1, col2 = st.columns(2)
         
         with col1:
@@ -730,7 +673,7 @@ elif menu == "🌍 全球风险监测":
                 locations="地理位置",
                 locationmode="country names",
                 color="数值",
-                color_continuous_scale="RdYlGn_r",
+                color_continuous_scale=["#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"],
                 template="plotly_dark",
                 title=f"{selected_year}年 - {risk_type} 全球风险地图"
             )
@@ -740,13 +683,50 @@ elif menu == "🌍 全球风险监测":
         with col2:
             top_risky = filtered_data.nlargest(15, '数值')
             fig_bar = px.bar(top_risky, x='地理位置', y='数值', color='数值',
-                            color_continuous_scale="Reds",
+                            color_continuous_scale=["#313695", "#4575b4", "#74add1", "#abd9e9", "#e0f3f8", "#fee090", "#fdae61", "#f46d43", "#d73027", "#a50026"],
                             template="plotly_dark",
                             title=f"{risk_type} 风险排名 Top 15")
             fig_bar.update_layout(height=500)
             st.plotly_chart(fig_bar, use_container_width=True)
-
-# ========== 5. 趋势预测 ==========
+# ========== 5. 国家聚类分析（新增） ==========
+elif menu == "📊 国家聚类分析":
+    st.subheader("🏷️ 国家健康水平聚类分析")
+    
+    file_path = "data/sim_data.csv"
+    if os.path.exists(file_path):
+        from sklearn.cluster import KMeans
+        from sklearn.preprocessing import StandardScaler
+        
+        df = pd.read_csv(file_path)
+        df = df.dropna(subset=['年份', '地理位置', '数值'])
+        df['年份'] = df['年份'].astype(int)
+        
+        # 选取最近一年数据
+        latest_year = df['年份'].max()
+        cluster_df = df[df['年份'] == latest_year].groupby('地理位置')['数值'].mean().reset_index()
+        
+        if len(cluster_df) >= 4:
+            # 特征标准化
+            scaler = StandardScaler()
+            features = scaler.fit_transform(cluster_df[['数值']])
+            
+            # K-Means 聚类 (K=4)
+            kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
+            cluster_df['聚类类别'] = kmeans.fit_predict(features)
+            
+            # 类别映射
+            cluster_names = {0: '🌟 高投入高产出', 1: '📈 高投入低产出', 
+                           2: '💡 低投入高产出', 3: '⚠️ 低投入低产出'}
+            cluster_df['治理类型'] = cluster_df['聚类类别'].map(cluster_names)
+            
+            st.dataframe(cluster_df[['地理位置', '数值', '治理类型']], use_container_width=True)
+            
+            # 散点图可视化
+            fig = px.scatter(cluster_df, x='地理位置', y='数值', color='治理类型',
+                            title=f"{latest_year}年 国家健康水平聚类分析",
+                            template="plotly_dark")
+            st.plotly_chart(fig, use_container_width=True)
+# ========== 6. 趋势预测 ==========
 elif menu == "📈 趋势预测":
     st.subheader("🔮 AI 智能趋势预测系统")
     st.caption("基于历史数据的机器学习预测模型 | 预测准确度约85%")
@@ -757,71 +737,40 @@ elif menu == "📈 趋势预测":
     
     if os.path.exists(file_path):
         df = pd.read_csv(file_path)
+        df = df.dropna(subset=['年份', '地理位置', '风险因素', '数值'])
+        df['年份'] = df['年份'].astype(int)
+        df['地理位置'] = df['地理位置'].map(COUNTRY_MAPPING).fillna(df['地理位置'])
         
         col1, col2 = st.columns(2)
         with col1:
-            selected_risk = st.selectbox("📈 选择预测指标", df['风险因素'].unique())
+            selected_risk = st.selectbox("📈 选择预测指标", df['风险因素'].unique(), key="pred_risk")
         with col2:
-            selected_country = st.selectbox("🌏 选择国家/地区", df['地理位置'].unique())
+            selected_country = st.selectbox("🌏 选择国家/地区", df['地理位置'].unique(), key="pred_country")
         
-        # 准备数据
         country_data = df[(df['地理位置'] == selected_country) & (df['风险因素'] == selected_risk)]
         
         if len(country_data) >= 3:
             X = country_data['年份'].values.reshape(-1, 1)
             y = country_data['数值'].values
-            
-            # 训练模型
             model = LinearRegression()
             model.fit(X, y)
             
-            # 预测未来3年
             future_years = np.array([2025, 2026, 2027, 2028]).reshape(-1, 1)
             predictions = model.predict(future_years)
-            
-            # R²评分
             r2_score = model.score(X, y)
             
-            # 可视化
             fig = go.Figure()
-            
-            fig.add_trace(go.Scatter(
-                x=country_data['年份'], y=country_data['数值'],
-                mode='lines+markers', 
-                name='历史数据',
-                line=dict(color='#48bbff', width=3),
-                marker=dict(size=8, symbol='circle')
-            ))
-            
-            fig.add_trace(go.Scatter(
-                x=future_years.flatten(), y=predictions,
-                mode='lines+markers', 
-                name='预测数据',
-                line=dict(color='#ec489a', width=3, dash='dash'),
-                marker=dict(size=8, symbol='diamond')
-            ))
-            
-            # 添加置信区间
-            fig.add_trace(go.Scatter(
-                x=np.concatenate([future_years.flatten(), future_years.flatten()[::-1]]),
-                y=np.concatenate([predictions + 5, (predictions - 5)[::-1]]),
-                fill='toself',
-                fillcolor='rgba(236,72,153,0.2)',
-                line=dict(color='rgba(255,255,255,0)'),
-                name='置信区间'
-            ))
-            
-            fig.update_layout(
-                template='plotly_dark',
-                title=f"{selected_country} - {selected_risk} 趋势预测",
-                xaxis_title="年份",
-                yaxis_title="风险指数",
-                height=500,
-                hovermode='x unified'
-            )
+            fig.add_trace(go.Scatter(x=country_data['年份'], y=y, mode='lines+markers', 
+                        name='历史数据', line=dict(color='#48bbff', width=3)))
+            fig.add_trace(go.Scatter(x=future_years.flatten(), y=predictions, mode='lines+markers', 
+                        name='预测数据', line=dict(color='#ec489a', width=3, dash='dash')))
+            fig.add_trace(go.Scatter(x=np.concatenate([future_years.flatten(), future_years.flatten()[::-1]]),
+                        y=np.concatenate([predictions + 5, (predictions - 5)[::-1]]), fill='toself',
+                        fillcolor='rgba(236,72,153,0.2)', line=dict(color='rgba(255,255,255,0)'), name='置信区间'))
+            fig.update_layout(template='plotly_dark', height=500, hovermode='x unified',
+                            title=f"{selected_country} - {selected_risk} 趋势预测")
             st.plotly_chart(fig, use_container_width=True)
             
-            # 预测报告
             trend = "上升趋势 📈" if predictions[-1] > y[-1] else "下降趋势 📉"
             trend_color = "#ef4444" if "上升" in trend else "#10b981"
             
@@ -829,37 +778,65 @@ elif menu == "📈 趋势预测":
             <div style="background: linear-gradient(135deg, #1a2332, #16202e); border-radius: 15px; padding: 20px; margin-top: 20px;">
                 <h4>📋 智能预测报告</h4>
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 15px;">
-                    <div>
-                        <div style="color: #8892b0;">预测模型</div>
-                        <div><strong>线性回归</strong> (R² = {r2_score:.3f})</div>
-                    </div>
-                    <div>
-                        <div style="color: #8892b0;">模型准确度</div>
-                        <div><strong>{r2_score * 100:.1f}%</strong></div>
-                    </div>
-                    <div>
-                        <div style="color: #8892b0;">2025年预测</div>
-                        <div><strong>{predictions[0]:.1f}</strong></div>
-                    </div>
-                    <div>
-                        <div style="color: #8892b0;">2026年预测</div>
-                        <div><strong>{predictions[1]:.1f}</strong></div>
-                    </div>
-                    <div>
-                        <div style="color: #8892b0;">2027年预测</div>
-                        <div><strong>{predictions[2]:.1f}</strong></div>
-                    </div>
-                    <div>
-                        <div style="color: #8892b0;">趋势分析</div>
-                        <div><strong style="color: {trend_color};">{trend}</strong></div>
-                    </div>
+                    <div><div style="color: #8892b0;">预测模型</div><div><strong>线性回归</strong> (R² = {r2_score:.3f})</div></div>
+                    <div><div style="color: #8892b0;">模型准确度</div><div><strong>{r2_score * 100:.1f}%</strong></div></div>
+                    <div><div style="color: #8892b0;">2025年预测</div><div><strong>{predictions[0]:.1f}</strong></div></div>
+                    <div><div style="color: #8892b0;">2026年预测</div><div><strong>{predictions[1]:.1f}</strong></div></div>
+                    <div><div style="color: #8892b0;">2027年预测</div><div><strong>{predictions[2]:.1f}</strong></div></div>
+                    <div><div style="color: #8892b0;">趋势分析</div><div><strong style="color: {trend_color};">{trend}</strong></div></div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
         else:
             st.warning(f"⚠️ {selected_country} 的数据点不足（{len(country_data)}个），需要至少3个数据点进行预测")
-
-# ========== 6. 报告中心 ==========
+# ========== 7. 资源优化 ==========
+elif menu == "📊 资源优化":
+    st.subheader("📊 卫生资源优化配置")
+    st.caption("自定义预算约束，生成最优资源配置方案")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.subheader("⚙️ 约束条件设置")
+        
+        total_budget = st.number_input("年度预算总额（万元）", min_value=0, value=100000, step=10000)
+        min_primary_care = st.slider("基层医疗最低占比（%）", 0, 100, 30)
+        min_prevention = st.slider("疾病预防最低占比（%）", 0, 100, 20)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.subheader("📈 优化结果")
+        
+        # 模拟优化计算
+        primary_care = total_budget * (min_primary_care / 100)
+        prevention = total_budget * (min_prevention / 100)
+        hospital = total_budget - primary_care - prevention
+        
+        st.metric("基层医疗投入", f"{primary_care:,.0f} 万元")
+        st.metric("疾病预防投入", f"{prevention:,.0f} 万元")
+        st.metric("医院建设投入", f"{hospital:,.0f} 万元")
+        
+        # 饼图
+        fig = go.Figure(data=[go.Pie(labels=['基层医疗', '疾病预防', '医院建设'],
+                                     values=[primary_care, prevention, hospital],
+                                     marker=dict(colors=['#48bbff', '#7c3aed', '#ec489a']))])
+        fig.update_layout(template='plotly_dark', title="资源配置方案")
+        st.plotly_chart(fig, use_container_width=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # 政策效果预估
+    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+    st.subheader("📊 政策效果预估")
+    
+    efficiency_gain = (min_primary_care + min_prevention) / 100 * 15
+    st.progress(min(1.0, efficiency_gain / 100))
+    st.caption(f"预计健康效率提升 {efficiency_gain:.1f}%")
+    st.markdown('</div>', unsafe_allow_html=True)
+# ========== 8. 报告中心 ==========
 elif menu == "📋 报告中心":
     st.subheader("📋 智能报告生成中心")
     st.caption("一键生成专业健康分析报告 | 支持导出分享")
@@ -873,14 +850,11 @@ elif menu == "📋 报告中心":
         report_country = st.selectbox("🌏 选择报告国家", ["中国", "美国", "日本", "德国", "英国", "法国", "加拿大"])
         report_year = st.selectbox("📅 报告年份", list(range(2015, 2025)), index=8)
         report_type = st.selectbox("📋 报告类型", ["综合评估报告", "风险分析报告", "资源评估报告", "趋势预测报告"])
-        report_format = st.radio("导出格式", ["Markdown", "文本"], horizontal=True)
         
         if st.button("🚀 生成报告", type="primary", use_container_width=True):
             with st.spinner("正在生成报告..."):
-                # 模拟报告数据
                 st.success("✅ 报告生成成功！")
                 
-                # 模拟健康数据
                 health_data = {
                     "中国": {"预期寿命": 78.2, "医疗支出占比": 5.8, "每千人医生": 2.4, "婴儿死亡率": 5.6},
                     "美国": {"预期寿命": 78.9, "医疗支出占比": 16.8, "每千人医生": 2.6, "婴儿死亡率": 5.7},
@@ -900,48 +874,24 @@ elif menu == "📋 报告中心":
                 - **国家**: {report_country}
                 - **报告年份**: {report_year}
                 - **生成时间**: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-                - **报告类型**: {report_type}
                 
                 #### 核心指标
-                | 指标 | 数值 | 全球排名 | 状态 |
-                |------|------|----------|------|
-                | 人均预期寿命 | {data['预期寿命']}岁 | 前列 | ✅ |
-                | 医疗支出占GDP | {data['医疗支出占比']}% | 中等 | 📊 |
-                | 每千人医生数 | {data['每千人医生']}人 | 中等 | 👨‍⚕️ |
-                | 婴儿死亡率 | {data['婴儿死亡率']}‰ | 良好 | 👶 |
+                | 指标 | 数值 | 状态 |
+                |------|------|------|
+                | 人均预期寿命 | {data['预期寿命']}岁 | ✅ |
+                | 医疗支出占GDP | {data['医疗支出占比']}% | 📊 |
+                | 每千人医生数 | {data['每千人医生']}人 | 👨‍⚕️ |
+                | 婴儿死亡率 | {data['婴儿死亡率']}‰ | 👶 |
                 
                 #### 综合分析
-                {report_country}的医疗卫生体系在过去一年中保持稳定发展。预期寿命达到{data['预期寿命']}岁，高于全球平均水平。
-                
-                #### 建议与展望
-                1. 持续优化医疗资源配置
-                2. 加强基层医疗服务能力
-                3. 推进医疗信息化建设
-                4. 深化医药卫生体制改革
+                {report_country}的医疗卫生体系保持稳定发展。预期寿命达到{data['预期寿命']}岁，高于全球平均水平。
                 
                 ---
                 *报告由 MediVision AI 智能生成*
                 """)
                 
-                # 报告下载
-                report_content = f"""
-{report_type}
-国家: {report_country}
-年份: {report_year}
-生成时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-
-核心指标:
-- 人均预期寿命: {data['预期寿命']}岁
-- 医疗支出占GDP: {data['医疗支出占比']}%
-- 每千人医生数: {data['每千人医生']}人
-
-综合分析: {report_country}的医疗卫生体系保持稳定发展。
-"""
-                st.download_button(
-                    "📥 下载报告", 
-                    report_content, 
-                    file_name=f"{report_country}_health_report_{report_year}.txt"
-                )
+                report_content = f"{report_type}\n国家: {report_country}\n年份: {report_year}\n生成时间: {datetime.now()}\n预期寿命: {data['预期寿命']}岁"
+                st.download_button("📥 下载报告", report_content, file_name=f"{report_country}_report_{report_year}.txt")
         
         st.markdown('</div>', unsafe_allow_html=True)
     
@@ -953,14 +903,12 @@ elif menu == "📋 报告中心":
             history_df = pd.DataFrame(st.session_state.calculation_history)
             st.dataframe(history_df, use_container_width=True)
             
-            # 导出历史记录
             if st.button("📤 导出历史记录"):
                 csv_data = history_df.to_csv(index=False)
                 st.download_button("💾 下载CSV", csv_data, file_name="calculation_history.csv")
         else:
             st.info("📭 暂无计算记录，请前往「智能计算引擎」进行计算")
         
-        # 统计摘要
         if st.session_state.calculation_history:
             st.divider()
             st.subheader("📊 统计摘要")
@@ -968,6 +916,7 @@ elif menu == "📋 报告中心":
             st.metric("平均综合得分", f"{avg_score:.1f} 分")
         
         st.markdown('</div>', unsafe_allow_html=True)
+
 
 # ========== 底部信息 ==========
 st.divider()
