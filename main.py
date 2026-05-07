@@ -11,6 +11,7 @@ import base64
 import os
 import glob
 
+
 # 页面全局设置 - 更现代的大屏深色主题
 st.set_page_config(
     page_title="MediVision｜全球健康智能分析平台",
@@ -189,10 +190,18 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 初始化会话状态
+
 if 'calculation_history' not in st.session_state:
     st.session_state.calculation_history = []
 if 'favorite_countries' not in st.session_state:
     st.session_state.favorite_countries = set()
+# ===== 新增：引导相关状态 =====
+if 'onboarding_complete' not in st.session_state:
+    st.session_state.onboarding_complete = False
+if 'show_help' not in st.session_state:
+    st.session_state.show_help = False
+if 'menu_target' not in st.session_state:
+    st.session_state.menu_target = None
 
 # ========== 国家名称转换映射 ==========
 COUNTRY_MAPPING = {
@@ -232,18 +241,43 @@ with st.sidebar:
         
     }
     
+    # ===== 修改：支持跳转到指定菜单 =====
+# 获取当前选中的菜单索引
+    default_index = 0
+    if st.session_state.get('menu_target') and st.session_state.menu_target in menu_options.keys():
+        default_index = list(menu_options.keys()).index(st.session_state.menu_target)
+
     menu = st.selectbox(
         "功能导航",
         list(menu_options.keys()),
+        index=default_index,
         format_func=lambda x: f"{menu_options[x]} {x.split(' ', 1)[1] if ' ' in x else x}"
-    )
-    
-    st.divider()
+)
+
+# 清除跳转目标
+    if st.session_state.get('menu_target'):
+        st.session_state.menu_target = None
+    # ===== 新增：功能说明扩展面板 =====
+    with st.expander("ℹ️ 功能说明（点击展开）", expanded=False):
+        st.markdown("""
+        | 功能 | 用途 | 推荐操作 |
+        |------|------|----------|
+        | 🏠 数据驾驶舱 | 全局数据概览 | 先看这里了解平台 |
+        | 📊 医疗资源分析 | 全球分布对比 | 选国家→看地图 |
+        | ✏️ 智能计算引擎 | 自定义评估 | 填数据→点分析 |
+        | 🌍 全球风险监测 | 风险预警 | 设阈值→看预警 |
+        | 📊 国家聚类分析 | 分组分析 | 自动聚类 |
+        | 📈 趋势预测 | AI预测 | 选指标→看预测 |
+        | 📊 资源优化 | 配置优化 | 设预算→看方案 |
+        | 📋 报告中心 | 生成报告 | 选国家→生成 |
+    """)
+        st.info("💡 **新手建议**：从「数据驾驶舱」开始，然后体验「智能计算引擎」")
+        st.divider()
     
     # 实时数据面板
-    st.markdown("### 📡 实时数据流")
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    st.caption(f"⏰ 系统时间: {current_time}")
+        st.markdown("### 📡 实时数据流")
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.caption(f"⏰ 系统时间: {current_time}")
     
     # 模拟实时指标
     real_time_metrics = {
@@ -312,14 +346,36 @@ col_logo1, col_title, col_logo2 = st.columns([1, 2, 1])
 with col_title:
     st.markdown('<p class="gradient-text" style="text-align: center;">🌍 MediVision</p>', unsafe_allow_html=True)
     st.markdown('<p style="text-align: center; color: #8892b0; margin-top: -10px;">全球健康智能分析决策平台</p>', unsafe_allow_html=True)
-
+    # ===== 新增：动态提示语（仅对未完成引导的用户显示） =====
+    if not st.session_state.onboarding_complete:
+        tips = [
+            "👋 新用户？点击左侧「数据驾驶舱」开始探索！",
+            "💡 想评估医疗资源？试试「智能计算引擎」",
+            "📊 想看全球对比？选择「医疗资源分析」",
+            "🎯 需要专业报告？「报告中心」一键生成",
+            "❓ 有任何疑问？点击右下角「?」按钮查看帮助"
+        ]
+        import random
+        st.markdown(f'<p style="text-align: center; color: #f59e0b; font-size: 14px; background: rgba(245,158,11,0.1); padding: 8px; border-radius: 20px;">✨ {random.choice(tips)}</p>', unsafe_allow_html=True)
 # 装饰分割线
 st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
 
 # ========== 1. 数据驾驶舱 ==========
 if menu == "🏠 数据驾驶舱":
     st.subheader("📊 数据驾驶舱")
-    
+    # ===== 新增：操作指引 =====
+    with st.expander("📖 **如何使用数据驾驶舱**", expanded=False):
+        st.markdown("""
+        **这个页面能看到什么？**
+        - 📊 关键指标：覆盖国家数、数据记录量等
+        - 🎯 快速健康评估：选择国家查看健康评分（右侧）
+        - 📈 全球健康趋势：查看多年变化曲线
+        
+        **试试这些操作：**
+        1. 在右侧「快速健康评估」下拉框中选择不同国家
+        2. 观察健康评分的变化
+        3. 查看下方的趋势图表
+        """)    
     # 欢迎横幅
     st.markdown("""
     <div style="background: linear-gradient(120deg, rgba(72,187,255,0.1), rgba(124,58,237,0.1)); 
@@ -381,7 +437,25 @@ if menu == "🏠 数据驾驶舱":
                 with col_b:
                     st.progress(score / 100, text=f"{score}分")
         st.markdown('</div>', unsafe_allow_html=True)
-    
+        # ===== 新增：示例演示区域 =====
+    st.divider()
+    with st.expander("🎬 **想看看完整示例？**", expanded=False):
+        st.markdown("""
+        ### 📊 示例：分析中国的医疗资源
+        
+        **跟着做：**
+        1. 点击下方「立即尝试」按钮
+        2. 页面会自动跳转到「医疗资源分析」模块
+        3. 选择「🗺️ 全球分布」标签页
+        4. 选择年份和风险因素
+        5. 在世界地图上找到中国
+        
+        **💡 提示**：鼠标悬停在地图上可查看具体数值
+        """)
+        
+        if st.button("🚀 立即尝试医疗资源分析", use_container_width=True):
+            st.session_state.menu_target = "📊 医疗资源分析"
+            st.rerun()
     with col2:
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
         st.subheader("📈 全球健康趋势")
@@ -500,6 +574,24 @@ elif menu == "✏️ 智能计算引擎":
     st.subheader("🧠 AI 智能计算引擎")
     st.caption("支持多维度健康指标计算与智能评估 | 数据驱动决策支持")
     
+    # ===== 新增：操作指引 =====
+    with st.expander("📖 **如何使用智能计算引擎**", expanded=not st.session_state.onboarding_complete):
+        st.markdown("""
+        **🎯 这个功能能做什么？**
+        - 输入地区的人口、医生数、床位数等数据
+        - 系统自动计算每千人医生数、每千人床位数等指标
+        - 生成资源评级（卓越/优秀/发展/紧缺）和雷达图
+        
+        **📝 操作步骤：**
+        1. 填写「基本信息」（地区名称、年份、人口）
+        2. 填写「医疗资源」（医生数、护士数）
+        3. 填写「基础设施」（床位数、预算）
+        4. 点击「🚀 开始智能分析」按钮
+        
+        **💡 试试修改这些值，看结果怎么变化：**
+        - 增加医生数 → 每千人医生数上升
+        - 增加人口 → 人均指标下降
+        """)  
     with st.form("advanced_calc_form"):
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
         
@@ -603,8 +695,10 @@ elif menu == "✏️ 智能计算引擎":
         
         categories = ['医生资源', '护理资源', '床位资源', '机构资源', '预算效率']
         values = [
-            min(doctor_per_1000 * 3.33, 10), min(nurse_per_1000 * 1.67, 10),
-            min(bed_per_1000 * 2, 10), min(hospital_per_million / 20, 10),
+            min(doctor_per_1000 * 3.33, 10),
+            min(nurse_per_1000 * 1.67, 10),
+            min(bed_per_1000 * 2, 10), 
+            min(hospital_per_million / 20, 10),
             min(budget_efficiency / 500, 10)
         ]
         
@@ -919,11 +1013,87 @@ elif menu == "📋 报告中心":
 
 
 # ========== 底部信息 ==========
+# ========== 底部信息 ==========
 st.divider()
 
+# ===== 新增：浮动帮助按钮样式 =====
+st.markdown("""
+<style>
+.help-float {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+}
+.help-float button {
+    background: #48bbff;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    font-size: 24px;
+    font-weight: bold;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    border: none;
+    cursor: pointer;
+}
+.help-float button:hover {
+    transform: scale(1.1);
+    background: #7c3aed;
+}
+</style>
+<div class="help-float">
+    <button onclick="parent.postMessage({type: 'streamlit:setComponentValue', value: 'help_clicked'}, '*')">?</button>
+</div>
+""", unsafe_allow_html=True)
+
+# 使用Streamlit按钮替代（更可靠）
+col_help1, col_help2, col_help3 = st.columns([10, 1, 1])
+with col_help2:
+    if st.button("❓", help="查看使用帮助"):
+        st.session_state.show_help = True
+        st.rerun()
+
+# ===== 新增：帮助弹窗 =====
+if st.session_state.get('show_help', False):
+    with st.expander("📖 **快速帮助中心**", expanded=True):
+        st.markdown("""
+        ### 🎯 我能用这个平台做什么？
+        
+        | 你的需求 | 使用的功能 |
+        |----------|------------|
+        | 想了解全球健康概况 | 🏠 数据驾驶舱 |
+        | 想看某个国家的数据 | 📊 医疗资源分析 |
+        | 想评估自己的医院/地区 | ✏️ 智能计算引擎 |
+        | 想知道哪些地方风险高 | 🌍 全球风险监测 |
+        | 想预测未来趋势 | 📈 趋势预测 |
+        | 需要一份报告 | 📋 报告中心 |
+        
+        ### 📝 快速上手3步走
+        
+        1️⃣ **第一步**：点击左侧「🏠 数据驾驶舱」查看全局
+        
+        2️⃣ **第二步**：点击「✏️ 智能计算引擎」，填写数据体验AI评估
+        
+        3️⃣ **第三步**：点击「📋 报告中心」生成你的第一份报告
+        
+        ### 💬 常见问题
+        
+        - **Q: 数据可以导入吗？** A: 可以，将CSV文件放入 `data/` 文件夹即可
+        - **Q: 结果可以导出吗？** A: 可以，在「报告中心」下载报告和历史记录
+        
+        ---
+        *需要更多帮助？请参考系统文档*
+        """)
+        
+        if st.button("关闭帮助", use_container_width=True):
+            st.session_state.show_help = False
+            st.rerun()
+
+# 原有底部信息
 col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
     st.caption("© 2024 MediVision | 健康数据智能分析平台 | 计算机设计大赛参赛作品")
+    st.caption("数据来源: WHO, World Bank, CDC | 技术支持: AI/ML")
     st.caption("数据来源: WHO, World Bank, CDC | 技术支持: AI/ML")
 
 # 欢迎提示（首次访问）
