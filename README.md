@@ -31,7 +31,7 @@ pip 包管理器
 安装步骤
 bash
 # 1. 克隆仓库
-git clone https://github.com/yourusername/medivision.git
+git clone [https://github.com/yourusername/medivision.git](https://github.com/xllyiiiii/health_platform)
 cd medivision
 
 # 2. 创建虚拟环境（推荐）
